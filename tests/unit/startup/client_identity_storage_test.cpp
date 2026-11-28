@@ -40,7 +40,7 @@ namespace {
       BaseTest::TearDown();
     }
 
-    std::string testDirectory = "pairing-storage-test";
+    std::string testDirectory = test_support::scratch_path("pairing-storage-test");
     std::string nestedIdentityDirectory = test_support::join_path(test_support::join_path(testDirectory, "nested"), "identity");
   };
 

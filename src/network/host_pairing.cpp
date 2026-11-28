@@ -10,7 +10,6 @@
 #include <array>
 #include <atomic>
 #include <cctype>
-#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -462,7 +461,12 @@ namespace {
    */
   std::string stream_key_id(std::string_view ivHex) {
     std::uint32_t prefix = 0;
-    std::from_chars(ivHex.data(), ivHex.data() + 8, prefix, 16);
+    // The caller validates the IV. nxdk's base-16 from_chars calls an unimplemented log2f().
+    for (const char character : ivHex.substr(0, 8)) {
+      unsigned char digit = 0;
+      hex_value(character, &digit);
+      prefix = (prefix << 4) | digit;
+    }
     const std::int64_t keyId = prefix < (1U << 31) ? prefix : static_cast<std::int64_t>(prefix) - (1LL << 32);
     return std::to_string(keyId);
   }

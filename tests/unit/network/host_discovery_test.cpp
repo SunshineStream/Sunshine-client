@@ -41,12 +41,15 @@ namespace {
     ScopedHostDiscoveryTestHandler &operator=(const ScopedHostDiscoveryTestHandler &) = delete;
   };
 
+#ifndef NXDK
+  /** @brief Verify the desktop discovery stub when no scripted handler is installed. */
   TEST(HostDiscoveryTest, ReturnsAnEmptySuccessfulResultWithoutATestHandler) {
     const network::DiscoverHostsResult result = network::discover_hosts(250U);
 
     EXPECT_TRUE(result.hosts.empty());
     EXPECT_TRUE(result.errorMessage.empty());
   }
+#endif
 
   TEST(HostDiscoveryTest, UsesTheScriptedTestHandlerWhenInstalled) {
     ScopedHostDiscoveryTestHandler guard([](uint32_t timeoutMilliseconds) {

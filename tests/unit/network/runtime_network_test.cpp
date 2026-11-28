@@ -97,6 +97,10 @@ namespace {
     EXPECT_EQ(lines[0], "Gateway: " + std::string(test_support::kTestIpv4Addresses[test_support::kIpRuntimeGateway]));
   }
 
+#ifndef NXDK
+  /**
+   * @brief Desktop builds report the OS-provided network status without initializing nxdk networking.
+   */
   TEST(RuntimeNetworkTest, InitializesAndCachesTheHostRuntimeNetworkStatus) {
     const network::RuntimeNetworkStatus initialized = network::initialize_runtime_networking();
     const network::RuntimeNetworkStatus &cached = network::runtime_network_status();
@@ -112,5 +116,6 @@ namespace {
     EXPECT_EQ(cached.summary, initialized.summary);
     EXPECT_EQ(cached.initializationCode, initialized.initializationCode);
   }
+#endif
 
 }  // namespace

@@ -29,7 +29,7 @@ namespace {
   }
 
   std::string test_log_file_path(const char *name) {
-    return test_support::join_path(test_support::join_path("test-output", "logging"), name);
+    return test_support::join_path(test_support::scratch_path(test_support::join_path("test-output", "logging")), name);
   }
 
   TEST(LogFileTest, AppendsEntriesAndLoadsRecentLines) {
@@ -148,7 +148,7 @@ namespace {
   TEST(LogFileTest, LoadsTheFinalLineEvenWhenTheFileDoesNotEndWithANewline) {
     const std::string filePath = test_log_file_path("unterminated.log");
     std::remove(filePath.c_str());
-    ASSERT_TRUE(test_support::create_directory(test_support::join_path("test-output", "logging")));
+    ASSERT_TRUE(test_support::create_directory(test_support::scratch_path(test_support::join_path("test-output", "logging"))));
     write_raw_text_file(filePath, "first line\r\nsecond line\r\nthird line");
 
     const logging::LoadLogFileResult loadedLog = logging::load_log_file(filePath, 0U);

@@ -1,6 +1,6 @@
 ---
 name: Test and report coverage
-description: Publish JUnit and LCOV reports from native tests
+description: Publish JUnit and LCOV reports from native or Xbox guest tests
 inputs:
   build-dir:
     description: Build directory relative to the workspace
@@ -11,6 +11,10 @@ inputs:
   gcov-source-root:
     description: Retained source directory when CTest and gcov already ran in the build sandbox
     required: false
+  xemu-tests:
+    description: Run the Original Xbox test ISO in xemu
+    required: false
+    default: 'false'
   test-shell:
     description: Shell with the build toolchain on its path
     required: false
@@ -23,26 +27,27 @@ runs:
   using: composite
   steps:
     - name: Set up Python
-      if: runner.os != 'Windows'
+      if: runner.os != 'Windows' || inputs.xemu-tests == 'true'
       uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
       with:
         python-version: '3.14'
 
     - name: Set up uv
-      if: runner.os != 'Windows'
+      if: runner.os != 'Windows' || inputs.xemu-tests == 'true'
       uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
       with:
         enable-cache: true
         cache-dependency-glob: third-party/lizardbyte-common/uv.lock
 
     - name: Install coverage tools
-      if: runner.os != 'Windows'
+      if: runner.os != 'Windows' || inputs.xemu-tests == 'true'
       shell: ${{ inputs.test-shell }}
       run: |
         uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
           --no-python-downloads --no-install-project
 
     - name: Run unit tests
+      if: inputs.xemu-tests != 'true'
       id: tests
       shell: ${{ inputs.test-shell }}
       env:
@@ -121,26 +126,73 @@ runs:
         fi
         test -s "${report}"
 
+    - name: Run Xbox tests and recover guest coverage
+      if: inputs.xemu-tests == 'true'
+      id: xemu
+      shell: bash
+      env:
+        CMAKE_BUILD: ${{ inputs.build-dir }}
+        APPIMAGE_EXTRACT_AND_RUN: '1'
+        SDL_AUDIO_DRIVER: dummy
+      run: |
+        tests=(uv run --project third-party/lizardbyte-common --locked --no-sync
+          python scripts/run-xbox-coverage.py "${CMAKE_BUILD}")
+        if [[ "${RUNNER_OS}" == Linux ]]; then
+          LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEO_DRIVER=x11 \
+            xvfb-run -a -s '-screen 0 1024x768x24' "${tests[@]}"
+        else
+          "${tests[@]}"
+        fi
+
+    - name: Select report paths
+      id: reports
+      if: >-
+        ${{ !cancelled() &&
+        (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure' ||
+        steps.xemu.outcome == 'success' || steps.xemu.outcome == 'failure') }}
+      shell: ${{ inputs.test-shell }}
+      env:
+        CMAKE_BUILD: ${{ inputs.build-dir }}
+        XEMU_TESTS: ${{ inputs.xemu-tests }}
+      run: |
+        if [[ "${XEMU_TESTS}" == true ]]; then
+          {
+            echo "coverage=${CMAKE_BUILD}/xemu-coverage/coverage.info"
+            echo "junit=${CMAKE_BUILD}/xemu-coverage/test_results.xml"
+            echo "logs=${CMAKE_BUILD}/xemu-coverage/*.log"
+          } >> "${GITHUB_OUTPUT}"
+        else
+          {
+            echo "coverage=${CMAKE_BUILD}/coverage.info"
+            echo "junit=${CMAKE_BUILD}/tests/test_results.xml"
+          } >> "${GITHUB_OUTPUT}"
+        fi
+
     - name: Upload test and coverage artifacts
-      if: ${{ !cancelled() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') }}
+      if: >-
+        ${{ !cancelled() && steps.reports.outcome == 'success' &&
+        (inputs.xemu-tests != 'true' || hashFiles(steps.reports.outputs.coverage, steps.reports.outputs.logs) != '') }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
       with:
         name: Tests-${{ inputs.platform }}
         path: |
-          ${{ inputs.build-dir }}/coverage.info
-          ${{ inputs.build-dir }}/tests/test_results.xml
+          ${{ steps.reports.outputs.coverage }}
+          ${{ steps.reports.outputs.junit }}
+          ${{ steps.reports.outputs.logs }}
         include-hidden-files: ${{ inputs.gcov-source-root != '' }}
         if-no-files-found: error
 
     - name: Upload coverage to Codecov
       if: >-
-        ${{ !cancelled() && steps.coverage.outcome == 'success' &&
+        ${{ !cancelled() && steps.reports.outcome == 'success' &&
+        (steps.coverage.outcome == 'success' ||
+        (inputs.xemu-tests == 'true' && hashFiles(steps.reports.outputs.coverage) != '')) &&
         startsWith(github.repository, 'SunshineStream/') }}
       uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
       with:
         disable_search: true
         fail_ci_if_error: true
-        files: ${{ inputs.build-dir }}/coverage.info
+        files: ${{ steps.reports.outputs.coverage }}
         flags: ${{ inputs.platform }}
         report_type: coverage
         token: ${{ inputs.codecov-token }}
@@ -148,14 +200,14 @@ runs:
     - name: Upload test results to Codecov
       if: >-
         ${{ !cancelled() &&
-        (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') &&
-        hashFiles(format('{0}/tests/test_results.xml', inputs.build-dir)) != '' &&
+        steps.reports.outcome == 'success' &&
+        hashFiles(steps.reports.outputs.junit) != '' &&
         startsWith(github.repository, 'SunshineStream/') }}
       uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
       with:
         disable_search: true
         fail_ci_if_error: true
-        files: ${{ inputs.build-dir }}/tests/test_results.xml
+        files: ${{ steps.reports.outputs.junit }}
         flags: ${{ inputs.platform }}
         report_type: test_results
         token: ${{ inputs.codecov-token }}

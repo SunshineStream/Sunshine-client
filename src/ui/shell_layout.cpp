@@ -78,12 +78,22 @@ namespace ui {
     };
   }
 
+  /**
+   * @brief Fit a positive window into the desktop layout's minimum logical dimensions.
+   */
   ShellRect calculate_desktop_shell_viewport(int width, int height, float displayScale) {
     if (width <= 0 || height <= 0) {
       return {};
     }
     const float scale = std::min({displayScale > 0.0f ? displayScale : 1.0f, static_cast<float>(width) / 440.0f, static_cast<float>(height) / 480.0f});
-    return {0, 0, static_cast<int>(std::lround(static_cast<float>(width) / scale)), static_cast<int>(std::lround(static_cast<float>(height) / scale))};
+    const float logicalWidth = static_cast<float>(width) / scale;
+    const float logicalHeight = static_cast<float>(height) / scale;
+#ifdef NXDK
+    // The guest tests exercise this shared layout code. nxdk's lroundf is a stub.
+    return {0, 0, static_cast<int>(static_cast<double>(logicalWidth) + 0.5), static_cast<int>(static_cast<double>(logicalHeight) + 0.5)};
+#else
+    return {0, 0, static_cast<int>(std::lround(logicalWidth)), static_cast<int>(std::lround(logicalHeight))};
+#endif
   }
 
   DesktopGridColumns calculate_desktop_grid_columns(int width) {

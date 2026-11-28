@@ -6,7 +6,8 @@
 #include "src/app/file_save_activity.h"
 
 // standard includes
-#include <future>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
 // lib includes
@@ -34,23 +35,38 @@ TEST(FileSaveActivityTest, ClearsOnEarlyReturn) {
  */
 TEST(FileSaveActivityTest, RemainsActiveUntilTheLastWriterFinishes) {
   const auto before = app::file_save_snapshot();
-  std::promise<void> entered;
-  std::promise<void> finish;
-  auto enteredFuture = entered.get_future();
-  auto finishFuture = finish.get_future();
-  std::thread worker([&entered, &finishFuture] {
+  std::mutex mutex;
+  std::condition_variable changed;
+  bool entered = false;
+  bool finish = false;
+  // nxdk implements condition variables, but its exception runtime cannot
+  // construct the exception state used by std::promise.
+  std::thread worker([&changed, &entered, &finish, &mutex] {
     const app::FileSaveActivity saving;
-    entered.set_value();
-    finishFuture.wait();
+    std::unique_lock lock(mutex);
+    entered = true;
+    changed.notify_one();
+    changed.wait(lock, [&finish] {
+      return finish;
+    });
   });
-  enteredFuture.wait();
+  {
+    std::unique_lock lock(mutex);
+    changed.wait(lock, [&entered] {
+      return entered;
+    });
+  }
   {
     const app::FileSaveActivity saving;
     EXPECT_TRUE(app::file_save_snapshot().active);
     EXPECT_EQ(app::file_save_snapshot().generation, before.generation + 1);
   }
   EXPECT_TRUE(app::file_save_snapshot().active);
-  finish.set_value();
+  {
+    const std::lock_guard lock(mutex);
+    finish = true;
+  }
+  changed.notify_one();
   worker.join();
   EXPECT_FALSE(app::file_save_snapshot().active);
   EXPECT_EQ(app::file_save_snapshot().generation, before.generation + 1);

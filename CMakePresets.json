@@ -36,8 +36,8 @@
     },
     {
       "name": "nxdk-release (ucrt64)",
-      "displayName": "Xbox and Host Tests Release (UCRT64)",
-      "description": "Build host tests natively with MinGW Makefiles and drive the Xbox target through an internal nxdk child configure",
+      "displayName": "Xbox Release with Documentation (UCRT64)",
+      "description": "Build the documentation and the Xbox ISO through the host build",
       "generator": "MinGW Makefiles",
       "toolchainFile": "${sourceDir}/cmake/host-ucrt64-clang.cmake",
       "binaryDir": "${sourceDir}/cmake-build-release-ucrt64",
@@ -48,7 +48,7 @@
       "cacheVariables": {
         "BUILD_DOCS": "ON",
         "BUILD_NATIVE_CLIENT": "OFF",
-        "BUILD_TESTS": "ON",
+        "BUILD_TESTS": "OFF",
         "BUILD_XBOX": "ON",
         "CMAKE_DEPENDS_USE_COMPILER": "FALSE",
         "CMAKE_BUILD_TYPE": "Release"
@@ -56,8 +56,8 @@
     },
     {
       "name": "nxdk-debug (ucrt64)",
-      "displayName": "Xbox and Host Tests Debug (UCRT64)",
-      "description": "Debug host build with the internal nxdk Xbox child configure enabled",
+      "displayName": "Xbox Debug with Documentation (UCRT64)",
+      "description": "Build the documentation and a debug Xbox ISO through the host build",
       "inherits": "nxdk-release (ucrt64)",
       "binaryDir": "${sourceDir}/cmake-build-nxdk-debug-ucrt64",
       "cacheVariables": {

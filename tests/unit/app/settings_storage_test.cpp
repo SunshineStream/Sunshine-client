@@ -27,7 +27,7 @@ namespace {
 
   class SettingsStorageTest: public BaseTest {  // NOSONAR(cpp:S3656) protected members are required by gtest
   protected:
-    std::string testDirectory = "settings-storage-test";
+    std::string testDirectory = test_support::scratch_path("settings-storage-test");
     std::string settingsPath = test_support::join_path(testDirectory, "moonlight.toml");
 
     void SetUp() override {
@@ -175,7 +175,19 @@ namespace {
 
   /** @brief Accept only the three documented integer values for GPU buffering. */
   TEST_F(SettingsStorageTest, RejectsInvalidGpuBufferCounts) {
-    for (const auto value : {"-1", "1", "4", "4294967299", "3.0", "'3'", "true"}) {
+    for (const auto value : {
+           "-1",
+           "1",
+           "4",
+           "4294967299",
+           "inf",
+           "'3'",
+           "true",
+#ifndef NXDK
+           // Decimal TOML floats use strtod(), which nxdk leaves unimplemented.
+           "3.0",
+#endif
+         }) {
       SCOPED_TRACE(value);
       write_text_file(settingsPath, std::string("[streaming]\ngpu_buffer_count = ") + value + "\n");
       const auto invalid = app::load_app_settings(settingsPath);

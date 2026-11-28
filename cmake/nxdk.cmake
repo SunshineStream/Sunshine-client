@@ -358,6 +358,7 @@ function(sunshine_add_xbox_build)
             -DSUNSHINE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
             -DSUNSHINE_BUILD_VIDEO_EXPERIMENTS:BOOL=${SUNSHINE_BUILD_VIDEO_EXPERIMENTS}
             -DSUNSHINE_BUILD_AUDIO_EXPERIMENTS:BOOL=${SUNSHINE_BUILD_AUDIO_EXPERIMENTS}
+            -DSUNSHINE_BUILD_XBOX_TESTS:BOOL=${SUNSHINE_BUILD_XBOX_TESTS}
             -DSUNSHINE_INPUT_DIAGNOSTICS:BOOL=${SUNSHINE_INPUT_DIAGNOSTICS}
             -DSUNSHINE_SCREENSHOT_DEMO:BOOL=${SUNSHINE_SCREENSHOT_DEMO}
             -P "${driver_script}"
@@ -377,12 +378,17 @@ function(sunshine_add_xbox_build)
     if(SUNSHINE_SCREENSHOT_DEMO)
         set(iso_name "SunshineDemo.iso")
     endif()
+    set(test_iso)
+    if(SUNSHINE_BUILD_XBOX_TESTS)
+        set(test_iso "${SUNSHINE_XBOX_BINARY_DIR}/SunshineTests.iso")
+    endif()
     add_custom_target(sunshine_xbox ALL
             COMMAND ${configure_command}
             COMMAND ${build_command}
             BYPRODUCTS
                 "${SUNSHINE_XBOX_BINARY_DIR}/${iso_name}"
                 "${SUNSHINE_XBOX_BINARY_DIR}/xbe/default.xbe"
+                ${test_iso}
             COMMENT "Configure and build the Xbox target in ${SUNSHINE_XBOX_BINARY_DIR}"
             USES_TERMINAL
             VERBATIM

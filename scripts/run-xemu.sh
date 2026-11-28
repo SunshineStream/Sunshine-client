@@ -7,7 +7,9 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: run-xemu.sh [--check] [--build-dir dir] [--iso path] [--network mode] [--tap-ifname name] [path]
+Usage: run-xemu.sh [--check] [--build-dir dir] [--iso path] [--network mode] [--tap-ifname name] [--test-output dir] [path]
+
+Use --test-output to capture guest coverage records and isolate the test guest's disk writes.
 
 Environment overrides:
   SUNSHINE_XEMU_BUILD_DIR
@@ -271,6 +273,7 @@ build_dir=""
 iso_path="$(default_iso_path "$project_root")"
 check_only=0
 target_path=""
+test_output=""
 network_mode="${SUNSHINE_XEMU_NETWORK:-user}"
 tap_ifname="${SUNSHINE_XEMU_TAP_IFNAME:-}"
 xemu_network_args=()
@@ -331,6 +334,14 @@ while [[ $# -gt 0 ]]; do
             fi
             tap_ifname="$1"
             ;;
+        --test-output)
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo 'Missing value for --test-output' >&2
+                exit 2
+            fi
+            test_output="$(resolve_input_path "$1")"
+            ;;
         --)
             shift
             if [[ $# -gt 0 ]]; then
@@ -364,14 +375,14 @@ if [[ -n "$target_path" ]]; then
 fi
 
 if [[ ! -f "$manifest_sh" ]]; then
-    "$setup_script"
+    bash "$setup_script"
 fi
 
 # shellcheck disable=SC1090
 source "$manifest_sh"
 
 if [[ -z "${XEMU_EXE:-}" || ! -e "$XEMU_EXE" ]]; then
-    "$setup_script"
+    bash "$setup_script"
     # shellcheck disable=SC1090
     source "$manifest_sh"
 fi
@@ -388,6 +399,14 @@ flashrom_path="${XEMU_FLASHROM_PATH:-}"
 eeprom_path="${XEMU_EEPROM_PATH:-}"
 hdd_path="${XEMU_HDD_PATH:-}"
 xemu_config_path="$project_root/.local/xemu/runtime/xemu.toml"
+test_args=()
+
+if [[ -n "$test_output" ]]; then
+    eeprom_path="$test_output/eeprom.bin"
+    xemu_config_path="$test_output/xemu.toml"
+    serial_args=(-device lpc47m157 -serial stdio -serial "file:$(to_native_path "$test_output/coverage.log")")
+    test_args=(-snapshot)
+fi
 
 if [[ -z "$eeprom_path" ]]; then
     eeprom_path="$project_root/.local/xemu/eeprom.bin"
@@ -446,5 +465,11 @@ if [[ ${#xemu_network_args[@]} -gt 0 ]]; then
     xemu_args+=("${xemu_network_args[@]}")
 fi
 xemu_args+=("${serial_args[@]}")
+xemu_args+=("${test_args[@]}")
+
+if [[ -n "$test_output" ]] && is_windows; then
+    # The serial file argument already embeds a native path for QEMU.
+    export MSYS2_ARG_CONV_EXCL='*'
+fi
 
 exec "$xemu_exe" "${xemu_args[@]}"

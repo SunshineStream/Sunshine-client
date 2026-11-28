@@ -8,13 +8,12 @@
 // standard includes
 #include <array>
 #include <atomic>
-#include <charconv>
 #include <cstddef>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <vector>
 
 // lib includes
@@ -202,11 +201,10 @@ namespace {
     EXPECT_EQ(text.size() % 2U, 0U);
     bytes.reserve(text.size() / 2U);
     for (std::size_t index = 0; index + 1U < text.size(); index += 2U) {
-      const std::string encodedByte(text.substr(index, 2U));
-      unsigned int value = 0U;
-      const std::from_chars_result decodeResult = std::from_chars(encodedByte.data(), encodedByte.data() + encodedByte.size(), value, 16);
-      EXPECT_EQ(decodeResult.ec, std::errc());
-      EXPECT_EQ(decodeResult.ptr, encodedByte.data() + encodedByte.size());
+      const std::array encodedByte {text[index], text[index + 1], '\0'};
+      char *end = nullptr;
+      const auto value = std::strtoul(encodedByte.data(), &end, 16);
+      EXPECT_EQ(end, encodedByte.data() + 2U);
       bytes.push_back(static_cast<std::byte>(value));
     }
     return bytes;
@@ -773,6 +771,7 @@ namespace {
     EXPECT_TRUE(network::resolve_reachable_address({}, serverInfo).empty());
   }
 
+#ifndef NXDK
   /**
    * @brief Exercise socket creation without the scripted transport or a listening server.
    */
@@ -783,6 +782,7 @@ namespace {
     EXPECT_FALSE(network::query_server_info("not-an-ip-address", 47989, nullptr, &serverInfo, &errorMessage));
     EXPECT_NE(errorMessage.find("Pairing currently requires a dotted IPv4 host address"), std::string::npos) << errorMessage;
   }
+#endif
 
   TEST(HostPairingTest, QueriesServerInfoAcrossFallbackPortsWhenTheDefaultPortFails) {
     ScriptedHostPairingHttpHandler handler({

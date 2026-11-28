@@ -18,6 +18,19 @@
 #include "src/app/stream_bitrate.h"
 
 namespace {
+  /**
+   * @brief Read the active floating-point rounding mode.
+   * @return The rounding mode supported by the active target's math runtime.
+   */
+  int current_rounding_mode() {
+#ifdef NXDK
+    unsigned short controlWord = 0;
+    asm volatile("fnstcw %0" : "=m"(controlWord));
+    return controlWord & 0x0c00;
+#else
+    return std::fegetround();
+#endif
+  }
 
   /**
    * @brief Preserve the calling thread's floating-point environment around width regressions.
@@ -31,7 +44,11 @@ namespace {
      */
     void SetUp() override {
       BaseTest::SetUp();
+#ifdef NXDK
+      ASSERT_EQ(std::feholdexcept(&originalEnvironment), 0);
+#else
       ASSERT_EQ(std::fegetenv(&originalEnvironment), 0);
+#endif
     }
 
     /**
@@ -57,7 +74,7 @@ namespace {
         EXPECT_EQ(splash::calculate_display_width(480, {640, 480, 32, 60}, 0UL), 640);
         EXPECT_EQ(splash::calculate_display_width(720, {1280, 720, 32, 60}, 0UL), 960);
         EXPECT_EQ(splash::calculate_display_width(480, {720, 480, 32, 60}, VIDEO_WIDESCREEN), 853);
-        EXPECT_EQ(std::fegetround(), roundingMode);
+        EXPECT_EQ(current_rounding_mode(), roundingMode);
       }
     }
   }

@@ -26,7 +26,7 @@ namespace {
 
   class SavedFilesTest: public BaseTest {  // NOSONAR(cpp:S3656) protected members are required by gtest
   protected:
-    std::string testDirectory = "saved-files-test";
+    std::string testDirectory = test_support::scratch_path("saved-files-test");
     std::string pairingDirectory = test_support::join_path(testDirectory, "pairing");
     std::string hostStoragePath = test_support::join_path(testDirectory, "moonlight-hosts.tsv");
     std::string settingsFilePath = test_support::join_path(testDirectory, "moonlight.toml");
@@ -103,13 +103,17 @@ namespace {
     EXPECT_EQ(file, nullptr);
   }
 
+  /**
+   * @brief Refuse to delete an unrelated file on the writable test volume.
+   */
   TEST_F(SavedFilesTest, RefusesToDeleteFilesOutsideTheManagedStorageSet) {
-    const std::string outsidePath = "outside.txt";
+    const std::string outsidePath = test_support::scratch_path("outside.txt");
     write_file_bytes(outsidePath, {'x'});
 
     std::string errorMessage;
     EXPECT_FALSE(startup::delete_saved_file(outsidePath, &errorMessage, config));
     EXPECT_FALSE(errorMessage.empty());
+    EXPECT_TRUE(test_support::exists(outsidePath));
 
     test_support::remove_if_present(outsidePath);
   }

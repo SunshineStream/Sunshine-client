@@ -4,7 +4,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 [--build-dir <dir> | <dir>] [--clean|clean] [--distclean|distclean] [--coverage]"
+  echo "Usage: $0 [--build-dir <dir> | <dir>] [--clean|clean] [--distclean|distclean] [--xbox-coverage]"
   return 0
 }
 
@@ -15,7 +15,7 @@ case "${HOST_SYSTEM}" in
   *) BUILD_DIR="cmake-build-release" ;;
 esac
 CLEAN_BUILD=0
-ENABLE_TEST_COVERAGE=0
+ENABLE_XBOX_COVERAGE=OFF
 POSITIONAL_BUILD_DIR_SET=0
 
 while [[ "$#" -gt 0 ]]; do
@@ -37,8 +37,8 @@ while [[ "$#" -gt 0 ]]; do
       CLEAN_BUILD=1
       shift
       ;;
-    --coverage)
-      ENABLE_TEST_COVERAGE=1
+    --xbox-coverage|--coverage)
+      ENABLE_XBOX_COVERAGE=ON
       shift
       ;;
     -h|--help)
@@ -73,15 +73,12 @@ cmake_configure_args=(
   -B "${BUILD_DIR_PATH}"
   -DBUILD_DOCS=OFF
   -DBUILD_NATIVE_CLIENT=OFF
-  -DBUILD_TESTS=ON
+  -DBUILD_TESTS=OFF
   -DBUILD_XBOX=ON
+  -DSUNSHINE_BUILD_XBOX_TESTS="${ENABLE_XBOX_COVERAGE}"
   -DCMAKE_DEPENDS_USE_COMPILER=FALSE
   -DCMAKE_BUILD_TYPE=Release
 )
-
-if [[ "${ENABLE_TEST_COVERAGE}" -eq 1 ]]; then
-  cmake_configure_args+=(-DSUNSHINE_TEST_COVERAGE=ON)
-fi
 
 case "${HOST_SYSTEM}" in
   MINGW*|MSYS*|CYGWIN*)

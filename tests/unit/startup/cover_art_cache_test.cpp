@@ -25,7 +25,7 @@ namespace {
       BaseTest::TearDown();
     }
 
-    std::string testDirectory = "cover-art-cache-test";
+    std::string testDirectory = test_support::scratch_path("cover-art-cache-test");
     std::string cacheKey = startup::build_cover_art_cache_key(
       "host-uuid-123",
       test_support::kTestIpv4Addresses[test_support::kIpHostGridA],

@@ -470,8 +470,8 @@ from the run configuration menu. **Run** builds `sunshine_xbox` and opens the re
 `cmake-build-xbox-release-ucrt64/Sunshine.iso` in xemu. To package the ISO on its own, build the
 `sunshine_xbox` target. The `sunshine_xbox_executable` target builds the intermediate binary.
 
-Use **Xbox and Host Tests Release (UCRT64)** when you also need the native test targets or
-documentation. That profile builds the Xbox client in a child directory and puts the ISO at
+Use **Xbox Release with Documentation (UCRT64)** when you also need the documentation.
+That profile builds the Xbox client in a child directory and puts the ISO at
 `cmake-build-release-ucrt64/xbox/Sunshine.iso`.
 
 For the first xemu launch, you can either run the shared `Setup portable xemu` configuration or run the Windows wrapper manually:
@@ -499,6 +499,27 @@ scripts\setup-xemu.cmd --skip-support-files
 > To expose widescreen and HDTV modes in xemu, use
 > [Xbox EEPROM Editor](https://github.com/Ernegien/XboxEepromEditor). 1080i streaming is demanding
 > on the emulated CPU, especially when using software presentation.
+
+### Guest tests and coverage in xemu
+
+Build the instrumented test disc, set up xemu, and run the tests from the repository root.
+On Windows, run these commands in UCRT64 and use `cmake-build-release-ucrt64/xbox` as the Xbox
+build directory. Use the `llvm-cov` from the same LLVM installation as Clang.
+
+```bash
+bash build.sh --xbox-coverage
+bash scripts/setup-xemu.sh
+uv sync --locked
+uv run --locked python scripts/run-xbox-coverage.py cmake-build-release/xbox
+```
+
+The build creates `SunshineTests.iso` beside the release ISO. It contains the regular unit tests
+from `tests/unit/` and the Xbox cases in `tests/xbox/guest/`. Desktop-only cases use platform guards.
+xemu prints each GoogleTest `[ RUN ]` line as the test starts so the last line identifies where a
+crash or hang occurred. The runner collects counters on
+the second serial port, pairs them with the coverage notes from the same build, and writes JUnit,
+LCOV, and the captured data under `xbox/xemu-coverage/`. Xbox CI runs xemu on each toolchain and
+uploads the results to Codecov under `Xbox-guest-xemu-<OS>`.
 
 ## Host-native unit tests
 

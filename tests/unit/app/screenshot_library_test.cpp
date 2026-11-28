@@ -6,7 +6,6 @@
 #include "src/app/screenshot_library.h"
 
 // standard includes
-#include <filesystem>
 #include <fstream>
 #include <limits>
 
@@ -27,8 +26,8 @@ namespace {
    */
   class ScreenshotLibraryTest: public BaseTest {  // NOSONAR(cpp:S3656) gtest fixture lifetime
   protected:
-    std::string root = "screenshot-library-test";  ///< Fixture-owned storage root.
-    std::string journal = root + "/index.tsv";  ///< Isolated screenshot index.
+    std::string root = test_support::scratch_path("screenshot-library-test");  ///< Fixture-owned storage root.
+    std::string journal = test_support::join_path(root, "index.tsv");  ///< Isolated screenshot index.
     app::ScreenshotSource source {"server-one", "192.0.2.1", 47989, "Office PC", 7, "Game"};  ///< Default capture identity.
 
     /**
@@ -123,22 +122,22 @@ namespace {
     EXPECT_TRUE(app::load_screenshots(source, journal).entries.empty());
     EXPECT_TRUE(app::load_screenshots(source, journal).error.empty());
     std::string error;
-    EXPECT_TRUE(app::append_screenshot({source, root + "/old/capture.bmp", 10}, journal, error)) << error;
+    EXPECT_TRUE(app::append_screenshot({source, test_support::join_path(test_support::join_path(root, "old"), "capture.bmp"), 10}, journal, error)) << error;
     auto other = source;
     other.appId = 8;
-    EXPECT_TRUE(app::append_screenshot({other, root + "/other.bmp", 99}, journal, error));
+    EXPECT_TRUE(app::append_screenshot({other, test_support::join_path(root, "other.bmp"), 99}, journal, error));
     {
       std::ofstream damaged(journal, std::ios::app | std::ios::binary);
       damaged << std::string(9000, 'x') << "\ninvalid\n"
               << "1\t20\t7\t47989\tserver-one\tip\thost\tapp\tpartial.bmp";
     }
-    EXPECT_TRUE(app::append_screenshot({source, root + "/new/first.bmp", 20}, journal, error));
-    EXPECT_TRUE(app::append_screenshot({source, root + "/new/second.bmp", 20}, journal, error));
+    EXPECT_TRUE(app::append_screenshot({source, test_support::join_path(test_support::join_path(root, "new"), "first.bmp"), 20}, journal, error));
+    EXPECT_TRUE(app::append_screenshot({source, test_support::join_path(test_support::join_path(root, "new"), "second.bmp"), 20}, journal, error));
     auto result = app::load_screenshots(source, journal);
     ASSERT_EQ(result.entries.size(), 3U);
-    EXPECT_EQ(result.entries[0].path, root + "/new/second.bmp");
-    EXPECT_EQ(result.entries[1].path, root + "/new/first.bmp");
-    EXPECT_EQ(result.entries[2].path, root + "/old/capture.bmp");
+    EXPECT_EQ(result.entries[0].path, test_support::join_path(test_support::join_path(root, "new"), "second.bmp"));
+    EXPECT_EQ(result.entries[1].path, test_support::join_path(test_support::join_path(root, "new"), "first.bmp"));
+    EXPECT_EQ(result.entries[2].path, test_support::join_path(test_support::join_path(root, "old"), "capture.bmp"));
     EXPECT_FALSE(result.error.empty());
     {
       std::ofstream partial(journal, std::ios::app | std::ios::binary);
@@ -147,7 +146,7 @@ namespace {
     EXPECT_EQ(app::load_screenshots(source, journal).entries.size(), 3U);
     EXPECT_FALSE(app::append_screenshot({}, journal, error));
     EXPECT_FALSE(error.empty());
-    EXPECT_FALSE(app::append_screenshot({source, "file.bmp", 30}, journal + "/not-a-directory", error));
+    EXPECT_FALSE(app::append_screenshot({source, "file.bmp", 30}, test_support::join_path(journal, "not-a-directory"), error));
     EXPECT_FALSE(error.empty());
     EXPECT_FALSE(app::append_screenshot({source, "file.bmp", 30}, root, error));
     EXPECT_FALSE(error.empty());
@@ -158,17 +157,17 @@ namespace {
    */
   TEST_F(ScreenshotLibraryTest, ChoosesUnusedFatxNames) {
     std::string error;
-    const std::string first = app::next_screenshot_path(root + "/shots", 1700000000, error);
+    const std::string first = app::next_screenshot_path(test_support::join_path(root, "shots"), 1700000000, error);
     ASSERT_FALSE(first.empty()) << error;
     {
       std::ofstream image(first);
       image << "original capture";
     }
-    const std::string second = app::next_screenshot_path(root + "/shots", 1700000000, error);
+    const std::string second = app::next_screenshot_path(test_support::join_path(root, "shots"), 1700000000, error);
     EXPECT_NE(first, second);
-    EXPECT_LT(std::filesystem::path(second).filename().string().size(), 43U);
-    EXPECT_EQ(std::filesystem::file_size(first), 16U);
-    EXPECT_TRUE(app::next_screenshot_path(first + "/blocked", 1, error).empty());
+    EXPECT_LT(test_support::file_name(second).size(), 43U);
+    EXPECT_EQ(test_support::file_size(first), 16U);
+    EXPECT_TRUE(app::next_screenshot_path(test_support::join_path(first, "blocked"), 1, error).empty());
     EXPECT_FALSE(error.empty());
     EXPECT_TRUE(app::next_screenshot_path(root, -1, error).empty());
     EXPECT_FALSE(error.empty());
@@ -250,8 +249,8 @@ namespace {
    */
   TEST_F(ScreenshotLibraryTest, DeletesOnlyTheChosenCaptureAndCanReuseItsFilename) {
     std::string error;
-    const auto first = app::next_screenshot_path(root + "/shots", 10, error);
-    const auto otherPath = root + "/other.bmp";
+    const auto first = app::next_screenshot_path(test_support::join_path(root, "shots"), 10, error);
+    const auto otherPath = test_support::join_path(root, "other.bmp");
     {
       std::ofstream image(first);
       image << "first image";
@@ -266,8 +265,8 @@ namespace {
     ASSERT_TRUE(app::append_screenshot(record, journal, error));
     ASSERT_TRUE(app::append_screenshot({other, otherPath, 11}, journal, error));
     ASSERT_TRUE(app::delete_screenshot(record, journal, error)) << error;
-    EXPECT_FALSE(std::filesystem::exists(first));
-    EXPECT_TRUE(std::filesystem::exists(otherPath));
+    EXPECT_FALSE(test_support::exists(first));
+    EXPECT_TRUE(test_support::exists(otherPath));
     EXPECT_TRUE(app::load_screenshots(source, journal).entries.empty());
     EXPECT_EQ(app::load_screenshots(other, journal).entries.size(), 1U);
     EXPECT_TRUE(app::load_screenshots(source, journal).error.empty());
@@ -293,26 +292,26 @@ namespace {
    */
   TEST_F(ScreenshotLibraryTest, ReportsDeletionFailuresWithoutLosingOtherCaptures) {
     std::string error;
-    const std::filesystem::path first = app::next_screenshot_path(root, 10, error);
+    const std::string first = app::next_screenshot_path(root, 10, error);
     {
       std::ofstream image(first);
       image << "capture";
     }
-    const app::ScreenshotRecord record {source, first.string(), 10};
+    const app::ScreenshotRecord record {source, first, 10};
     ASSERT_TRUE(app::append_screenshot(record, journal, error));
     EXPECT_FALSE(app::delete_screenshot({}, journal, error));
     EXPECT_FALSE(error.empty());
-    EXPECT_FALSE(app::delete_screenshot(record, root + "/missing/index.tsv", error));
-    EXPECT_TRUE(std::filesystem::exists(first));
-    std::filesystem::create_directory(root + "/protected.bmp");
+    EXPECT_FALSE(app::delete_screenshot(record, test_support::join_path(test_support::join_path(root, "missing"), "index.tsv"), error));
+    EXPECT_TRUE(test_support::exists(first));
+    ASSERT_TRUE(test_support::create_directory(test_support::join_path(root, "protected.bmp")));
     {
-      std::ofstream child(root + "/protected.bmp/child.txt");
+      std::ofstream child(test_support::join_path(test_support::join_path(root, "protected.bmp"), "child.txt"));
       child << "keep";
     }
-    EXPECT_FALSE(app::delete_screenshot({source, root + "/protected.bmp", 10}, journal, error));
+    EXPECT_FALSE(app::delete_screenshot({source, test_support::join_path(root, "protected.bmp"), 10}, journal, error));
     EXPECT_FALSE(error.empty());
-    EXPECT_TRUE(std::filesystem::exists(root + "/protected.bmp/child.txt"));
+    EXPECT_TRUE(test_support::exists(test_support::join_path(test_support::join_path(root, "protected.bmp"), "child.txt")));
     EXPECT_EQ(app::load_screenshots(source, journal).entries.size(), 1U);
-    EXPECT_TRUE(std::filesystem::exists(first));
+    EXPECT_TRUE(test_support::exists(first));
   }
 }  // namespace

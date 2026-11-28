@@ -29,8 +29,8 @@ namespace {
       BaseTest::TearDown();
     }
 
-    std::string testDirectory = "host-storage-test";
-    std::string testFilePath = "host-storage-test.tsv";
+    std::string testDirectory = test_support::scratch_path("host-storage-test");
+    std::string testFilePath = test_support::scratch_path("host-storage-test.tsv");
     std::string nestedFilePath = test_support::join_path(test_support::join_path(testDirectory, "nested"), "hosts.tsv");
   };
 

@@ -97,10 +97,14 @@ copy_tree_preserving_existing() {
 }
 
 latest_xemu_tag() {
-    curl -fsSL --proto '=https' --proto-redir '=https' -A 'Sunshine-client setup-xemu' \
-        'https://api.github.com/repos/xemu-project/xemu/releases/latest' |
-        sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' |
-        head -n 1
+    local releases='https://github.com/xemu-project/xemu/releases'
+    local release_page
+    # The public release page redirects to the latest tag without consuming the REST API quota.
+    release_page="$(curl -fsSLI --retry 3 --proto '=https' --proto-redir '=https' \
+        -A 'Sunshine-client setup-xemu' -o /dev/null -w '%{url_effective}' "$releases/latest")" || return 1
+    if [[ "$release_page" == "$releases/tag/"* ]]; then
+        printf '%s\n' "${release_page##*/}"
+    fi
 
     return 0
 }
@@ -118,13 +122,13 @@ select_xemu_asset() {
             printf 'xemu-win-aarch64-release.zip\n'
             ;;
         macos:*)
-            printf 'xemu-%s-macos-universal.zip\n' "$tag"
+            printf 'xemu-%s-macos-universal.zip\n' "${tag#v}"
             ;;
         linux:x86_64|linux:amd64)
-            printf 'xemu-%s-x86_64.AppImage\n' "$tag"
+            printf 'xemu-%s-x86_64.AppImage\n' "${tag#v}"
             ;;
         linux:arm64|linux:aarch64)
-            printf 'xemu-%s-aarch64.AppImage\n' "$tag"
+            printf 'xemu-%s-aarch64.AppImage\n' "${tag#v}"
             ;;
         *)
             return 1
@@ -156,7 +160,7 @@ detect_platform() {
             ;;
     esac
 
-    printf '%s\n%s\n' "$os_name" "$arch_name"
+    printf '%s %s\n' "$os_name" "$arch_name"
 }
 
 find_first_file() {
@@ -264,17 +268,15 @@ xemu_exe="$(find_existing_xemu_executable "$app_dir" || true)"
 if [[ -n "$xemu_exe" && "$force_download" -eq 0 ]]; then
     reused_existing_xemu=1
 else
-    mapfile -t platform_info < <(detect_platform)
-    os_name="${platform_info[0]}"
-    arch_name="${platform_info[1]}"
-    tag="$(latest_xemu_tag)"
+    read -r os_name arch_name < <(detect_platform)
+    tag="$(latest_xemu_tag || true)"
     if [[ -z "$tag" ]]; then
         echo 'Could not determine the latest xemu release tag.' >&2
         exit 1
     fi
 
     asset_name="$(select_xemu_asset "$os_name" "$arch_name" "$tag")"
-    asset_url="https://github.com/xemu-project/xemu/releases/latest/download/${asset_name}"
+    asset_url="https://github.com/xemu-project/xemu/releases/download/${tag}/${asset_name}"
     asset_path="$downloads_dir/$asset_name"
 
     download_file "$asset_url" "$asset_path" "$force_download"

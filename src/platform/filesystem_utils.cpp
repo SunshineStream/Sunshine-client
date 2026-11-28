@@ -72,20 +72,42 @@ namespace {
     return path;
   }
 
+  /**
+   * @brief Create a missing path component or report why it cannot be created.
+   * @param path Path component to create.
+   * @param errorMessage Receives an optional filesystem error.
+   * @return True when the directory is available.
+   */
   bool create_directory_if_missing(const std::string &path, std::string *errorMessage) {
-#if defined(_WIN32) || defined(NXDK)
+#ifdef NXDK
+    // nxdk's _mkdir asserts for some kernel errors, including a file used as
+    // a directory. Call Win32 directly so the client can report the failure.
+    if (CreateDirectoryA(path.c_str(), nullptr)) {
+      return true;
+    }
+    const DWORD error = GetLastError();
+    const DWORD attributes = GetFileAttributesA(path.c_str());
+    if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+      return true;
+    }
+    if (errorMessage != nullptr) {
+      *errorMessage = "Failed to create directory '" + path + "' (Xbox error " + std::to_string(error) + ").";
+    }
+#else
+  #ifdef _WIN32
     if (_mkdir(path.c_str()) == 0 || errno == EEXIST) {
       return true;
     }
-#else
+  #else
     if (mkdir(path.c_str(), 0750) == 0 || errno == EEXIST) {
       return true;
     }
-#endif
+  #endif
 
     if (errorMessage != nullptr) {
       *errorMessage = "Failed to create directory '" + path + "': " + std::error_code(errno, std::generic_category()).message();
     }
+#endif
     return false;
   }
 

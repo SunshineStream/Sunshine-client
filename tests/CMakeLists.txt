@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.13)
 
 project(test_sunshine LANGUAGES CXX)
 
-if(NOT DEFINED SUNSHINE_HOST_TESTABLE_SOURCES)
+if(NOT DEFINED SUNSHINE_TESTABLE_SOURCES)
     message(FATAL_ERROR "tests/CMakeLists.txt must be configured from the top-level CMake project")
 endif()
 
@@ -49,17 +49,12 @@ if(WIN32 OR MINGW OR CMAKE_HOST_WIN32)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)  # cmake-lint: disable=C0103
 endif()
 
-file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
-        ${CMAKE_SOURCE_DIR}/tests/*.h
-        ${CMAKE_SOURCE_DIR}/tests/*.cpp)
-list(FILTER TEST_SOURCES EXCLUDE REGEX "/tests/gpu/")
-list(FILTER TEST_SOURCES EXCLUDE REGEX "/tests/controller/")
-list(FILTER TEST_SOURCES EXCLUDE REGEX "/tests/xbox/")
+include("${CMAKE_CURRENT_SOURCE_DIR}/sources.cmake")
 
 add_executable(${PROJECT_NAME}
-        ${TEST_SOURCES}
+        ${SUNSHINE_UNIT_TEST_SOURCES}
         "${CMAKE_SOURCE_DIR}/src/_nxdk_compat/ffmpeg_memory.c"
-        ${SUNSHINE_HOST_TESTABLE_SOURCES})
+        ${SUNSHINE_TESTABLE_SOURCES})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17)
 
